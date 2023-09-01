@@ -11,8 +11,9 @@ class ModuleInstance extends InstanceBase {
 	}
 
 	async getSatellite() {
+		this.log('debug', 'fetch')
 		try {
-			const response = await fetch(this.url)
+			const response = await fetch(this.url, { signal: AbortSignal.timeout(this.config.timeout) })
 			const json = await response.json()
 			this.updateStatus(InstanceStatus.Ok)
 			if (json.host) {
@@ -25,7 +26,7 @@ class ModuleInstance extends InstanceBase {
 				this.setVariableValues({ con: json.connected })
 			}
 		} catch (error) {
-			console.error(error)
+			this.log('error', error)
 			this.updateStatus(InstanceStatus.Disconnected)
 		}
 	}
@@ -45,7 +46,7 @@ class ModuleInstance extends InstanceBase {
 
 		this.interval = setInterval(() => {
 			this.getSatellite()
-		}, 10000)
+		}, parseInt(this.config.timeout) + 500)
 	}
 	// When module gets deleted
 	async destroy() {
@@ -55,6 +56,12 @@ class ModuleInstance extends InstanceBase {
 
 	async configUpdated(config) {
 		this.config = config
+		clearInterval(this.interval)
+
+		this.getSatellite()
+		this.interval = setInterval(() => {
+			this.getSatellite()
+		}, parseInt(this.config.timeout) + 500)
 	}
 
 	// Return config fields for web config
@@ -73,6 +80,15 @@ class ModuleInstance extends InstanceBase {
 				label: 'REST Port',
 				width: 4,
 				regex: Regex.PORT,
+			},
+			{
+				label: 'Timeout (ms)',
+				type: 'number',
+				id: 'timeout',
+				width: 4,
+				min: 500,
+				max: 20000,
+				default: 10000,
 			},
 		]
 	}
